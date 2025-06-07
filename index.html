@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <title>Plinko Game</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: sans-serif;
+      background: linear-gradient(to bottom, #24243e, #302b63, #0f0c29);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+    }
+
+    #board {
+      position: relative;
+      width: 360px;
+      height: 500px;
+      background: #111;
+      border-radius: 20px;
+      box-shadow: 0 0 25px #00f0ff;
+      padding: 20px 10px 80px;
+      box-sizing: border-box;
+    }
+
+    .peg {
+      position: absolute;
+      width: 10px;
+      height: 10px;
+      background: #fff;
+      border-radius: 50%;
+      box-shadow: 0 0 5px #0ff;
+    }
+
+    .ball {
+      position: absolute;
+      width: 14px;
+      height: 14px;
+      background: #ff1493;
+      border-radius: 50%;
+      box-shadow: 0 0 10px #ff1493;
+      z-index: 10;
+    }
+
+    .slot {
+      position: absolute;
+      bottom: 0;
+      width: 60px;
+      height: 60px;
+      background: #222;
+      border-left: 2px solid #00f0ff;
+      border-right: 2px solid #00f0ff;
+      box-sizing: border-box;
+      color: #fff;
+      text-align: center;
+      line-height: 60px;
+      font-weight: bold;
+      text-shadow: 0 0 5px #fff;
+    }
+
+    .slot:first-child {
+      border-left: none !important;
+    }
+
+
+
+
+    button {
+      margin-top: 20px;
+      padding: 12px 24px;
+      background: #ff1493;
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-size: 16px;
+      cursor: pointer;
+      box-shadow: 0 0 15px #ff1493;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="board"></div>
+  <button onclick="dropBall()">ปล่อยลูกบอล</button>
+
+  <script>
+    const board = document.getElementById('board');
+    const cols = 9;
+    const rows = 9;
+    const spacingX = 40;
+    const spacingY = 45;
+    const slotWidth = 60;
+    const slotCount = 6;
+    const slotRewards = [100, 200, 500, 1000, 2000, 10000]; /* รางวัลสำหรับแต่ละช่อง*/
+    const slots = [];
+
+    // กำหนดจำนวนลูกบอลที่ปล่อยได้พร้อมกัน
+    let maxBallsAtOnce = 10;
+    let ballsInMotion = 0;
+    // สร้างหมุด peg
+    for (let y = 0; y < rows; y++) {
+      for (let x = 0; x < cols; x++) {
+        const peg = document.createElement('div');
+        peg.className = 'peg';
+        peg.style.left = `${x * spacingX + (y % 2 === 0 ? spacingX / 2 : 0)}px`;
+        peg.style.top = `${y * spacingY + 20}px`;
+        board.appendChild(peg);
+      }
+    }
+
+    // สร้างช่อง รางวัล
+    const boardWidth = board.clientWidth;
+    const startX = (boardWidth - (slotCount * slotWidth)) / 2;
+
+    for (let i = 0; i < slotCount; i++) {
+      const slot = document.createElement('div');
+      slot.className = 'slot';
+      slot.style.left = `${startX + i * slotWidth}px`;
+      slot.innerText = slotRewards[i];
+      board.appendChild(slot);
+
+      slots.push({
+        x: startX + i * slotWidth,
+        width: slotWidth
+      });
+    }
+
+
+    /*
+     - ฟังก์ชันสำหรับปล่อยลูกบอลลงมา
+     - ถ้าลูกบอลที่กำลังเคลื่อนที่อยู่ถึงจำนวนสูงสุด จะไม่ปล่อยเพิ่ม
+     */
+
+    function dropBall() {
+      if (ballsInMotion >= maxBallsAtOnce) return; // ถ้าครบจำนวนที่กำหนดแล้ว ไม่ปล่อยเพิ่ม
+
+      ballsInMotion++; // นับลูกที่กำลังปล่อย
+
+      const ball = document.createElement('div');
+      ball.className = 'ball';
+      board.appendChild(ball);
+
+      let radius = 7;
+      let x = Math.random() * (board.clientWidth - radius * 2);
+      let y = 0;
+      let vx = (Math.random() - 0.5) * 0.6;
+      let vy = 0;
+      let gravity = 0.02;
+      let damping = 0.995;
+      let lastHitTime = 0;
+      let landedSlot = null;
+
+
+      // animation ลูกบอลกระทบ
+      function animate() {
+        const now = Date.now();
+
+        vy += gravity;
+        vx *= damping;
+        vy *= damping;
+
+        x += vx;
+        y += vy;
+
+        if (x <= 0 || x >= board.clientWidth - radius * 2) {
+          vx *= -0.6;
+          x = Math.max(0, Math.min(x, board.clientWidth - radius * 2));
+        }
+
+        const pegs = document.querySelectorAll('.peg');
+        for (let peg of pegs) {
+          const px = peg.offsetLeft + 5;
+          const py = peg.offsetTop + 5;
+          const dx = x + radius - px;
+          const dy = y + radius - py;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+
+          if (dist < 11 && now - lastHitTime > 30) {
+            const angle = Math.atan2(dy, dx);
+            const force = 1.1;
+            vx += Math.cos(angle) * force * 0.6;
+            vy = -Math.abs(Math.sin(angle)) * force * 0.6;
+            lastHitTime = now;
+          }
+        }
+
+        const boundaryWidth = 10;
+
+        for (let i = 1; i < slots.length; i++) {
+          const boundaryX = slots[i].x;
+          const isNearBottom = y + radius > board.clientHeight - 80;
+          const isTouchingBoundary = x + radius > boundaryX - boundaryWidth / 2 &&
+            x + radius < boundaryX + boundaryWidth / 2;
+
+          if (isNearBottom && isTouchingBoundary) {
+            const nudge = (Math.random() * 0.2 + 0.05) * (Math.random() < 0.5 ? -1 : 1);
+            vx += nudge;
+          }
+        }
+
+        if (y > board.clientHeight - radius * 2 - 5) {
+          vy = 0;
+          vx = 0;
+
+          if (landedSlot === null) {
+            for (let slot of slots) {
+              const slotLeft = slot.x;
+              const slotRight = slot.x + slot.width;
+              const ballRight = x + radius;
+              const ballLeft = x - radius;
+
+              if (Math.abs(ballRight - slotLeft) < 3 && vx > 0) {
+                vx = -Math.abs(vx) * 0.8;
+                x = slotLeft - radius;
+              } else if (Math.abs(ballLeft - slotRight) < 3 && vx < 0) {
+                vx = Math.abs(vx) * 0.8;
+                x = slotRight + radius;
+              }
+            }
+          } else {
+            x = landedSlot.x + landedSlot.width / 2 - radius;
+            y = board.clientHeight - radius * 2;
+          }
+        }
+
+        ball.style.left = `${x}px`;
+        ball.style.top = `${y}px`;
+
+        const isStillMoving = y < board.clientHeight - radius * 2 || Math.abs(vy) > 0.1;
+
+        if (isStillMoving) {
+          requestAnimationFrame(animate);
+        } else {
+          ballsInMotion--; // เมื่อลูกหยุดแล้ว หักออก
+        }
+      }
+
+      animate();
+    }
+  </script>
+
+
+</body>
+
+</html>
